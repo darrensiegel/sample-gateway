@@ -10,4 +10,4 @@ $ docker run -d --name gateway --link auth-db:mysql --link broker:my-rabbit -p 8
 
 ## Running dependencies
 
-See [this documentation](https://github.com/darrensiegel/sample-auth-service/README.md)
+See [this documentation](https://github.com/darrensiegel/sample-auth-service)
