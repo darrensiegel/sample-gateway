@@ -1,10 +1,9 @@
 var express    = require('express');        // call express
 var app        = express();                 // define our app using express
 var bodyParser = require('body-parser');
-
-
 var amqp = require('amqplib/callback_api');
 
+// Track outstanding requests that are awaiting a response
 var pendingCallbacks = {};
 
 var registerCallback = function(callback) {
@@ -16,7 +15,7 @@ var unregisterCallback = function(callback) {
 }
 
 // configure app to use bodyParser()
-// this will let us get the data from a POST
+// this will let us get the data eventually from a POST
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -26,9 +25,6 @@ var port = process.env.PORT || 8080;        // set our port
 // =============================================================================
 var router = express.Router();              // get an instance of the express Router
 
-var send = function(message, res) {
-
-}
 
 // test route to make sure everything is working (accessed at GET http://localhost:8080/api)
 router.get('/', function(req, res) {
@@ -42,7 +38,7 @@ router.route('/data/:source')
 
         console.log("Sending data request: " + JSON.stringify(message));
 
-        boundCallService(message)
+        sendMessage(message)
           .then(result => res.json(result));
     });
 
@@ -56,7 +52,7 @@ router.route('/authRequest')
 
         console.log("Sending authRequest: " + JSON.stringify(message));
 
-        boundCallService(message)
+        sendMessage(message)
           .then(result => res.json(result));
     });
 
@@ -66,7 +62,9 @@ router.route('/authRequest')
 // all of our routes will be prefixed with /api
 app.use('/api', router);
 
-var callService = function(ch, replyQueue, message) {
+// A functional wrapper around the rabbitmq rpc mechanism
+// Returns a promise that resolves once the rpc is acked
+var serviceCaller = function(ch, replyQueue, message) {
   return new Promise(function(resolve, reject) {
     var corr = generateUuid();
 
@@ -89,7 +87,7 @@ var callService = function(ch, replyQueue, message) {
   });
 }
 
-var boundCallService;
+var sendMessage;
 
 
 // START THE SERVER
@@ -107,12 +105,15 @@ amqp.connect('amqp://my-rabbit', function(err, conn) {
 
         Object.keys(pendingCallbacks).filter(k => k === msg.properties.correlationId)
           .forEach(k => pendingCallbacks[k](msg));
+
       }, {noAck: true});
 
-      boundCallService = callService.bind(this, ch, q);
+      // Now that we have the channel and queue information, bind
+      // it to our service caller
+      sendMessage = serviceCaller.bind(this, ch, q);
 
       app.listen(port);
-      console.log('Magic happens on port ' + port);
+      console.log('Gateway listening on port ' + port);
 
     });
   });
