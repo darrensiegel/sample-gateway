@@ -26,22 +26,38 @@ var port = process.env.PORT || 8080;        // set our port
 // =============================================================================
 var router = express.Router();              // get an instance of the express Router
 
+var send = function(message, res) {
+
+}
+
 // test route to make sure everything is working (accessed at GET http://localhost:8080/api)
 router.get('/', function(req, res) {
     res.json({ message: 'hooray! welcome to our api!' });
 });
 
+router.route('/data/:source')
+    .get(function(req, res) {
+
+        let message = { type: req.params.source };
+
+        console.log("Sending data request: " + JSON.stringify(message));
+
+        boundCallService(message)
+          .then(result => res.json(result));
+    });
+
 router.route('/authRequest')
-    .post(function(req, res) {
+    .get(function(req, res) {
 
-        var authRequest = req.body;
+        let message = { type: 'hasAuthorization' };
+        message.actor = req.query.actor;
+        message.action = req.query.action;
+        message.item = req.query.item;
 
-        console.log("Sending authRequest: " + JSON.stringify(authRequest));
+        console.log("Sending authRequest: " + JSON.stringify(message));
 
-        boundCallService(authRequest)
-          .then(function(result) {
-            res.json(result);
-          })
+        boundCallService(message)
+          .then(result => res.json(result));
     });
 
 // more routes for our API will happen here
