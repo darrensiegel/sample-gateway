@@ -25,6 +25,8 @@ var port = process.env.PORT || 8080;        // set our port
 // =============================================================================
 var router = express.Router();              // get an instance of the express Router
 
+var cache = {};
+
 
 // test route to make sure everything is working (accessed at GET http://localhost:8080/api)
 router.get('/', function(req, res) {
@@ -36,10 +38,27 @@ router.route('/data/:source')
 
         let message = { type: req.params.source };
 
-        console.log("Sending data request: " + JSON.stringify(message));
+        if (cache[message.type] !== undefined) {
+          res.json(cache[message.type]);
+        } else {
 
-        sendMessage(message)
-          .then(result => res.json(result));
+          console.log("Sending data request: " + JSON.stringify(message));
+
+          sendMessage(message)
+            .then(result => {
+              cache[message.type] = result;
+              res.json(result)
+            });
+        }
+
+    });
+
+router.route('/cache')
+    .delete(function(req, res) {
+
+        cache = {};
+
+        res.json({ done: true });
     });
 
 router.route('/authRequest')
@@ -56,7 +75,13 @@ router.route('/authRequest')
           .then(result => res.json(result));
     });
 
-// more routes for our API will happen here
+
+// CORS configuration
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
 
 // REGISTER OUR ROUTES -------------------------------
 // all of our routes will be prefixed with /api
