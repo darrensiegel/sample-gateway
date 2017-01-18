@@ -114,38 +114,70 @@ var serviceCaller = function(ch, replyQueue, message) {
 
 var sendMessage;
 
-
-// START THE SERVER
-// =============================================================================
-
-amqp.connect('amqp://my-rabbit', function(err, conn) {
-
-  conn.createChannel(function(err, ch) {
-
-    ch.assertQueue('auth-rpc-queue-reply', {exclusive: true}, function(err, q) {
-
-      ch.consume(q.queue, function(msg) {
-
-        console.log("Received reply: " + msg);
-
-        Object.keys(pendingCallbacks).filter(k => k === msg.properties.correlationId)
-          .forEach(k => pendingCallbacks[k](msg));
-
-      }, {noAck: true});
-
-      // Now that we have the channel and queue information, bind
-      // it to our service caller
-      sendMessage = serviceCaller.bind(this, ch, q);
-
-      app.listen(port);
-      console.log('Gateway listening on port ' + port);
-
+var connectToBroker = function(initialResolve) {
+  return new Promise(function(resolve, reject) {
+    amqp.connect('amqp://broker', function(err, conn) {
+      if (conn === undefined) {
+        console.log("broker connection failed");
+        setTimeout(() => connectToBroker(initialResolve === undefined ? resolve : initialResolve), 100);
+      } else if (initialResolve === undefined) {
+        resolve(conn);
+      } else {
+        initialResolve(conn);
+      }
     });
   });
-});
+}
+
+var initBroker = function(conn) {
+  return new Promise(function(resolve, reject) {
+
+    conn.createChannel(function(err, ch) {
+
+      ch.assertQueue('auth-rpc-queue-reply', {exclusive: true}, function(err, q) {
+
+        ch.consume(q.queue, function(msg) {
+
+          console.log("Received reply: " + msg);
+
+          Object.keys(pendingCallbacks).filter(k => k === msg.properties.correlationId)
+            .forEach(k => pendingCallbacks[k](msg));
+
+        }, {noAck: true});
+
+        resolve({ ch, q });
+
+      });
+    });
+  });
+}
+
+var bindServiceCaller = function(ch, q) {
+  // Now that we have the channel and queue information, bind
+  // it to our service caller
+  sendMessage = serviceCaller.bind(this, ch, q);
+}
 
 function generateUuid() {
   return Math.random().toString() +
          Math.random().toString() +
          Math.random().toString();
 }
+
+var init = function() {
+
+  console.log("Starting Gateway");
+
+  connectToBroker()
+    .then(conn => initBroker(conn))
+    .then(result => {
+
+      bindServiceCaller(result.ch, result.q);
+
+      app.listen(port);
+      console.log('Gateway listening on port ' + port);
+    })
+    .catch(err => setTimeout(() => init(), 100));
+}
+
+init();
