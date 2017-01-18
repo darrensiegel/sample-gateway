@@ -5,7 +5,7 @@ Sample api gateway.
 ## Running the container
 
 ```
-$ docker run -d --name gateway --link auth-db:mysql --link broker:my-rabbit -p 8080:8080 <user name>/gateway
+$ docker run -d --name gateway --link auth-db:mysql --link broker:my-rabbit -p 8080:8081 <user name>/gateway
 ```
 
 ## Running dependencies
